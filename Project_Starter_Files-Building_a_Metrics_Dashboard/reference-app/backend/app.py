@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, json, render_template, request, jsonify
 
 import pymongo
 from flask_pymongo import PyMongo
@@ -82,6 +82,19 @@ def add_star():
         span.set_tag('status', 'star')
         return jsonify({'result' : output})
 
+@app.route('/servererror')
+@metrics.summary('requests_by_status_servererrror', 'Request latencies by status servererrror',
+                 labels={'status': lambda r: r.status_code})
+@metrics.histogram('requests_by_status_and_path_servererrror', 'Request latencies by status and path servererrror',
+                   labels={'status': lambda r: r.status_code, 'path': lambda: request.path})
+@metrics.gauge('in_progress_servererrror', 'Long running requests in progress servererrror' )
+def servererror():
+    response = app.response_class(
+            response=json.dumps({"result":"Internal Error"}),
+            status=500,
+            mimetype='application/json'
+    )
+    return response
 
 if __name__ == "__main__":
     
