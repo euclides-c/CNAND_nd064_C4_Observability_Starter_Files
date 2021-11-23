@@ -16,9 +16,6 @@ metrics =  GunicornInternalPrometheusMetrics(app, group_by='endpoint')
 
 
 metrics.info('app_info', 'Application info', version='1.0.3')
-common_counter = metrics.counter(
-    'by_endpoint_counter', 'Request count by endpoints',
-    labels={'endpoint': lambda: request.endpoint})
 
 config = Config(
     config={
@@ -33,16 +30,14 @@ jaeger_tracer = config.initialize_tracer()
 tracing = FlaskTracing(jaeger_tracer, True, app)
 
 @app.route('/')
-@common_counter
+@metrics.summary('requests_by_status', 'Request latencies by status',
+                 labels={'status': lambda r: r.status_code})
+@metrics.histogram('requests_by_status_and_path', 'Request latencies by status and path',
+                   labels={'status': lambda r: r.status_code, 'path': lambda: request.path})
+@metrics.gauge('in_progress', 'Long running requests in progress')
 def homepage():
     return render_template("main.html")
 
-metrics.register_default(
-    metrics.counter(
-        'by_path_counter', 'Request count by request paths',
-        labels={'path': lambda: request.path}
-    )
-)
 
 if __name__ == "__main__":
     app.run()

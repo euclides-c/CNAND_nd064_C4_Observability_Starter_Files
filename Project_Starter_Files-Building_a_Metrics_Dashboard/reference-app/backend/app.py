@@ -17,10 +17,7 @@ app = Flask(__name__)
 
 metrics =  GunicornInternalPrometheusMetrics(app, group_by='endpoint')
 metrics.info('app_info', 'Application info', version='1.0.3')
-common_counter = metrics.counter(
-    'by_endpoint_counter', 'Request count by endpoints',
-    labels={'endpoint': lambda: request.endpoint}
-)
+
 
 config = Config(
     config={
@@ -39,8 +36,14 @@ app.config['MONGO_URI'] = 'mongodb://example-mongodb-svc.default.svc.cluster.loc
 
 mongo = PyMongo(app)
 
+
 @app.route('/')
-@common_counter
+@metrics.summary('requests_by_status_home', 'Request latencies by status home',
+                 labels={'status': lambda r: r.status_code})
+@metrics.histogram('requests_by_status_and_path_home', 'Request latencies by status and path home',
+                   labels={'status': lambda r: r.status_code, 'path': lambda: request.path})
+@metrics.gauge('in_progress_home', 'Long running requests in progress home')
+
 def homepage():
     with jaeger_tracer.start_span('hello world') as span:
         hw = "Hello World"
@@ -49,7 +52,12 @@ def homepage():
 
 
 @app.route('/api')
-@common_counter
+@metrics.summary('requests_by_status_api', 'Request latencies by status api',
+                 labels={'status': lambda r: r.status_code})
+@metrics.histogram('requests_by_status_and_path_api', 'Request latencies by status and path api',
+                   labels={'status': lambda r: r.status_code, 'path': lambda: request.path})
+@metrics.gauge('in_progress_api', 'Long running requests in progress api')
+
 def my_api():
     with jaeger_tracer.start_span('api') as span:
         answer = "something"
@@ -57,7 +65,12 @@ def my_api():
         return jsonify(repsonse=answer)
 
 @app.route('/star', methods=['POST'])
-@common_counter
+@metrics.summary('requests_by_status_start', 'Request latencies by status star',
+                 labels={'status': lambda r: r.status_code})
+@metrics.histogram('requests_by_status_and_path_start', 'Request latencies by status and path star',
+                   labels={'status': lambda r: r.status_code, 'path': lambda: request.path})
+@metrics.gauge('in_progress_star', 'Long running requests in progress star')
+
 def add_star():
     with jaeger_tracer.start_span('star') as span:
         star = mongo.db.stars
@@ -69,15 +82,6 @@ def add_star():
         span.set_tag('status', 'star')
         return jsonify({'result' : output})
 
-
-# register additional default metrics
-
-metrics.register_default(
-    metrics.counter(
-        'by_path_counter', 'Request count by request paths',
-        labels={'path': lambda: request.path}
-    )
-)
 
 if __name__ == "__main__":
     

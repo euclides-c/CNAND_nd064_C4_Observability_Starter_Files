@@ -28,13 +28,13 @@ app = Flask(__name__)
 
 # uncomment below line for local testing, other wise an error will be thrown 
 
-os.environ["PROMETHEUS_MULTIPROC_DIR"] = "./"
+# os.environ["PROMETHEUS_MULTIPROC_DIR"] = "./"
 
 metrics =  GunicornInternalPrometheusMetrics(app, group_by='endpoint')
 metrics.info('app_info', 'Application info', version='1.0.3')
-common_counter = metrics.counter(
-    'by_endpoint_counter', 'Request count by endpoints',
-    labels={'endpoint': lambda: request.endpoint})
+# common_counter = metrics.counter(
+#     'by_endpoint_counter', 'Request count by endpoints',
+#     labels={'endpoint': lambda: request.endpoint})
 # FlaskInstrumentor().instrument_app(app)
 # RequestsInstrumentor().instrument()
 
@@ -65,10 +65,14 @@ def init_tracer(service):
     # this call also sets opentracing.tracer
     return config.initialize_tracer()
 
-tracer = init_tracer('first-service')
+tracer = init_tracer('trial-service')
 
 @app.route('/')
-@common_counter
+@metrics.summary('requests_by_status', 'Request latencies by status',
+                 labels={'status': lambda r: r.status_code})
+@metrics.histogram('requests_by_status_and_path', 'Request latencies by status and path',
+                   labels={'status': lambda r: r.status_code, 'path': lambda: request.path})
+@metrics.gauge('in_progress', 'Long running requests in progress')
 def homepage():
     # return render_template("main.html")
     with tracer.start_span('get-python-jobs') as span:
@@ -83,11 +87,11 @@ def homepage():
     return jsonify(homepages)
             
 
-metrics.register_default(
-    metrics.counter(
-        'by_path_counter', 'Request count by request paths',
-        labels={'path': lambda: request.path}
-    )
-)
+# metrics.register_default(
+#     metrics.counter(
+#         'by_path_counter', 'Request count by request paths',
+#         labels={'path': lambda: request.path}
+#     )
+# )
 if __name__ == "__main__":
     app.run(debug=True,)
